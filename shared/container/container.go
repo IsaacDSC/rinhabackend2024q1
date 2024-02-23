@@ -2,6 +2,7 @@ package container
 
 import (
 	"database/sql"
+	"log/slog"
 	"rinhabackend/internal/repository"
 	"rinhabackend/internal/service"
 	"rinhabackend/web/handler"
@@ -23,9 +24,9 @@ type ContainerServices struct {
 	TransactionService *service.TransactionService //TODO: mudar para interface
 }
 
-func NewContainerService(repo *ContainerRepositories, db *sql.DB) *ContainerServices {
+func NewContainerService(repo *ContainerRepositories, db *sql.DB, logger *slog.Logger) *ContainerServices {
 	return &ContainerServices{
-		TransactionService: service.NewTransactionService(repo.TransactionRepository, repo.ClientRepository, db),
+		TransactionService: service.NewTransactionService(repo.TransactionRepository, repo.ClientRepository, db, logger),
 	}
 }
 

@@ -9,8 +9,8 @@ type TransactionsOutput struct {
 
 type Ballance struct {
 	Total int       `json:"total"`
-	Date  time.Time `json:"data_extrato"`
 	Limit int       `json:"limite"`
+	Date  time.Time `json:"data_extrato"`
 }
 
 type Transactions struct {

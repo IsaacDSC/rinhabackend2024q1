@@ -1,5 +1,8 @@
+#@host=http://localhost:9999
+@host=http://localhost:3000
+
 ###
-POST http://localhost:3000/clientes/1/transacoes
+POST {{host}}/clientes/1/transacoes
 content-type: application/json
 
 {
@@ -10,5 +13,23 @@ content-type: application/json
 
 
 ###
-GET http://localhost:3000/clientes/1/extrato
+GET {{host}}/clientes/2/extrato
 content-type: application/json
+
+
+
+# HTTP/1.1 200 OK
+# Server: nginx/1.25.4
+# Date: Tue, 20 Feb 2024 22:12:59 GMT
+# Content-Type: application/json
+# Content-Length: 108
+# Connection: close
+
+# {
+#   "saldo": {
+#     "data_extrato": "2024-02-20T22:12:59.52741293Z",
+#     "limite": 100000,
+#     "total": 0
+#   },
+#   "ultimas_transacoes": []
+# }

@@ -2,8 +2,6 @@ package dto
 
 import (
 	"rinhabackend/internal/entity"
-
-	"github.com/google/uuid"
 )
 
 type TransactionInput struct {
@@ -17,14 +15,16 @@ type TransactionOutput struct {
 	Balance int64 `json:"saldo"`
 }
 
-func (t *TransactionInput) ToDomain(userID string, limit, balance int64) *entity.Transaction {
+func (t *TransactionInput) ToDomain(transactionID string, clientID int, limit, balance int64) *entity.Transaction {
 	return &entity.Transaction{
-		ID:          uuid.New(),
-		UserID:      userID,
+		ID:          transactionID,
 		Value:       t.Value,
 		Type:        t.Type,
 		Description: t.Description,
-		Balance:     balance,
-		Limit:       limit,
+		Client: entity.Client{
+			ID:      clientID,
+			Balance: balance,
+			Limit:   limit,
+		},
 	}
 }

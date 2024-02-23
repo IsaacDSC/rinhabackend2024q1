@@ -3,8 +3,6 @@ package entity
 import (
 	"errors"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 type TransactionType string
@@ -15,14 +13,18 @@ const (
 )
 
 type Transaction struct {
-	ID          uuid.UUID
-	UserID      string
+	ID          string
 	Value       int64
 	Type        TransactionType
 	Description string
-	Limit       int64
-	Balance     int64
 	CreatedAt   time.Time
+	Client      Client
+}
+
+type Client struct {
+	ID      int
+	Balance int64
+	Limit   int64
 }
 
 func (t *Transaction) Execute() (err error) {
@@ -44,14 +46,17 @@ func (t *Transaction) Execute() (err error) {
 }
 
 func (t *Transaction) credit() (err error) {
-	t.Balance = t.Balance + t.Value
+	t.Client.Balance += t.Value
 	return
 }
 
 func (t *Transaction) debit() (err error) {
-	if t.Balance <= 0 && t.Value <= t.Limit {
-		return errors.New("credits must be positive")
+	// if t.Value > t.Balance || t.Value > t.Limit {
+	// 	return errors.New("debit must be positive")
+	// }
+	if t.Client.Balance+t.Client.Limit >= t.Value {
+		return errors.New(string(ERROR_DEBIT_MUST_BE_POSITIVE))
 	}
-	t.Balance = t.Value - t.Balance
+	t.Client.Balance -= t.Value
 	return
 }

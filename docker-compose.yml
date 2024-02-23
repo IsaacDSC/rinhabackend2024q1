@@ -1,0 +1,90 @@
+version: "3.5"
+
+services:
+  app01: &api
+      hostname: api01
+      container_name: app01
+      build:
+        context: .
+        dockerfile: ./Dockerfile
+      volumes:
+        - .:/usr/app
+      ports:
+        - "3001:3000"
+      depends_on:
+      - db
+      environment:
+      - DB_HOST=db
+      - DB_PORT=4321
+      restart: "on-failure"
+      deploy:
+        resources:
+          limits:
+            cpus: "0.6"
+            memory: "55MB"
+  api02:
+    # Essa sintaxe reusa o que foi declarado em 'api01'.
+    <<: *api 
+    hostname: api02
+    container_name: api02
+    ports:
+      - "3002:3000"
+
+  api03:
+    # Essa sintaxe reusa o que foi declarado em 'api01'.
+    <<: *api
+    hostname: api03
+    container_name: api03
+    ports:
+      - "3003:3000"
+
+  nginx:
+    image: nginx:latest
+    volumes:
+      - ./devops/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api01
+      - api02
+      - api03
+    ports:
+        # Obrigatório expor/usar a porta 9999 no load balancer!
+      - "9999:9999" 
+    deploy:
+      resources:
+        limits:
+          cpus: "0.17"
+          memory: "45MB"
+
+  db:
+    image: postgres:latest
+    hostname: db
+    environment:
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_USER=root
+      - POSTGRES_DB=rinha_backend
+    command: postgres -c 'max_connections=250'
+    ports:
+      - "4321:5432"
+    volumes:
+      - ./external/migrations/create_database.sql:/docker-entrypoint-initdb.d/script.sql
+      - ./external/seed/clients.seed.sql:/docker-entrypoint-initdb.d/seed.sql
+    deploy:
+      resources:
+        limits:
+          # Note que a soma de todos os limites dos serviços
+          # aqui declarados é de 1.5 unidades de CPU e 550MB
+          # de memória. A distribuição feita aqui é apenas
+          # um exemplo – distribua como quiser.
+          cpus: "0.13"
+          memory: "400MB"
+
+# O uso do modo `bridge` deve ser adequado à carga que será usada no teste.
+# A edição anterior se beneficiou do modo host pois o volume de requisições
+# era relativamente alto e a virtualização da rede se tornou um gargalo, mas
+# este modo é mais complexo de ser configurado. Fique à vontade para usar o
+# modo que quiser desde que não conflite com portas trivialmente usadas em um
+# SO.
+networks:
+  default:
+    driver: bridge
+    name: rinha-nginx-2024q1
