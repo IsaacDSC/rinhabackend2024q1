@@ -11,9 +11,10 @@ DB_PORT=5432 go run ./cmd/main.go
 
 
 ## Conceitos
+ - Cache
+ - Processamento async -> queue para banco de dados
  - Errar rápido
    - Definir tempos limits para transação (ctx, cancel)
- -
 
 
 deploy.resources.limits.cpu 1.5 – uma unidade e meia de CPU distribuída entre todos os seus serviços
@@ -60,13 +61,7 @@ Adicionar logs críticos de erros na aplicação para coletar depois com as mét
 Aumentar o worker do nginx para o tanto que a aplicação aguenta
 
 
-nginx                                        1.80%     30.72MiB / 55MiB      55.85%    44.7MB / 39.5MB   12.8MB / 1.12MB   2
-b92b2995e34f   api02                         12.74%    54.52MiB / 55MiB      99.13%    15.2MB / 11.3MB   122MB / 112MB     10
-2abcf864d9a9   app01                         1.54%     54.09MiB / 55MiB      98.35%    14.8MB / 11.2MB   164MB / 154MB     10
-fd70c8513dd9   rinhabackend2024_q1-db-1      12.91%    254.2MiB / 440MiB     57
-
-
-- [ ] validaçoes mais rápidas para retornar o erro logo 
+- [x] validaçoes mais rápidas para retornar o erro logo
 - [ ] woker topando no topo connection -> 1000
 - [ ] api com 35mb não aguenta e cai uma depois derruba as outras
   - Api esta ficando demorando para responder e deixando pools https connectados até 6000ms
@@ -76,3 +71,7 @@ fd70c8513dd9   rinhabackend2024_q1-db-1      12.91%    254.2MiB / 440MiB     57
      - Adicionar index id clients
    - Economizar as transaçoes
    - As connections do database -> db.SetMaxOpenConns(83) db.SetMaxIdleConns(20)
+
+
+### References
+https://martinfowler.com/articles/lmax.html

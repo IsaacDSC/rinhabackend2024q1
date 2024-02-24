@@ -13,7 +13,7 @@ content-type: application/json
 
 
 ###
-GET {{host}}/clientes/2/extrato
+GET {{host}}/clientes/1/extrato
 content-type: application/json
 
 

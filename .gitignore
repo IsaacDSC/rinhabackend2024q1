@@ -1,3 +1,5 @@
 .env
 charge_test
 tmp
+.idea
+.vscode

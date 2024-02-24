@@ -2,3 +2,7 @@ tests
 README.md
 rinha-backend.md
 steps.txt
+charge-test
+.vscode
+.idea
+tmp
