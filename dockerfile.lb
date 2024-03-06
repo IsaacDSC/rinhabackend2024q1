@@ -4,7 +4,7 @@ WORKDIR /usr/app
 
 COPY . .
 
-RUN GOOS=linux GOARCH=amd64 go build -o server ./cmd/api/main.go
+RUN GOOS=linux GOARCH=amd64 go build -o server ./cmd/balancer/main.go
 
 FROM alpine
 
@@ -12,6 +12,6 @@ COPY --from=builder /usr/app /app
 
 WORKDIR /app
 
-EXPOSE 3000
+EXPOSE 9999
 
 CMD ["/app/server"]

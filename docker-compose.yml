@@ -38,6 +38,29 @@ services:
     ports:
       - "3003:3000"
 
+#  lb:
+#    hostname: lb
+#    container_name: lb
+#    build:
+#      context: .
+#      dockerfile: ./dockerfile.lb
+#    volumes:
+#      - .:/usr/app
+#    ports:
+#      - "9999:9999"
+#    depends_on:
+#      - api01
+#      - api02
+#      - api03
+#    environment:
+#      - ENTRIES=http://192.168.1.100:3001,http://192.168.1.100:3002,http://192.168.1.100:3003
+#    restart: "on-failure"
+#    deploy:
+#      resources:
+#        limits:
+#          cpus: "0.17"
+#          memory: "100MB"
+
   nginx:
     image: nginx:latest
     volumes:
@@ -48,7 +71,7 @@ services:
       - api03
     ports:
         # Obrigatório expor/usar a porta 9999 no load balancer!
-      - "9999:9999" 
+      - "9999:9999"
     deploy:
       resources:
         limits:
