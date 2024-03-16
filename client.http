@@ -1,13 +1,16 @@
-@host=http://localhost:9999
+#@host=http://localhost:9999
 #@host=http://localhost:3000
+@host=https://localhost:3000
+#@host=http://localhost:3002
+
 
 ###
 POST {{host}}/clientes/1/transacoes
 content-type: application/json
 
 {
-    "valor": 1000,
-    "tipo" : "c",
+    "valor": 100,
+    "tipo" : "d",
     "descricao" : "descricao"
 }
 
@@ -16,7 +19,8 @@ content-type: application/json
 GET {{host}}/clientes/1/extrato
 content-type: application/json
 
-
+###
+GET {{host}}/
 
 # HTTP/1.1 200 OK
 # Server: nginx/1.25.4

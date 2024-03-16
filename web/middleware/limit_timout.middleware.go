@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 )
@@ -28,4 +29,27 @@ func TimeoutLimit(next http.Handler) http.Handler {
 		}
 
 	})
+}
+
+func ProcessTimeout(h http.HandlerFunc, duration time.Duration) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), duration)
+		defer cancel()
+
+		r = r.WithContext(ctx)
+
+		processDone := make(chan bool)
+		go func() {
+			h(w, r)
+			processDone <- true
+		}()
+
+		select {
+		case <-ctx.Done():
+			cancel()
+			w.Write([]byte(`{"error": "process timeout"}`))
+		case <-processDone:
+			fmt.Println("processDone")
+		}
+	}
 }

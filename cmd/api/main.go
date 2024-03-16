@@ -4,99 +4,47 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/google/uuid"
+	"github.com/go-chi/chi"
+	"github.com/go-chi/cors"
+	_ "github.com/lib/pq"
 	"log"
 	"log/slog"
 	"net/http"
 	"rinhabackend/external/database"
 	"rinhabackend/external/lib"
-	"rinhabackend/external/queue"
+	"rinhabackend/model"
 	"rinhabackend/shared/dto"
 	"rinhabackend/web/middleware"
-	"sync"
+	"strings"
 	"time"
-
-	"github.com/go-chi/chi"
-	"github.com/go-chi/cors"
-	_ "github.com/lib/pq"
 )
 
 var (
-	dbCache *Database
-	logger  *slog.Logger
-	dbPql   *sql.DB
-	iSyncQ  *queue.Event
+	logger       *slog.Logger
+	dbPql        *sql.DB
+	limitAccount map[string]int64
 )
 
 func init() {
-	dbCache = NewDatabase()
-	dbCache.Start()
-
 	dbPql = database.ConnPSQL()
 	if err := dbPql.Ping(); err != nil {
 		log.Fatal(dbPql.Ping())
 	}
 
-	logger = lib.NewLogger(slog.LevelError)
-	logger.Info("Initialize server")
-}
-
-type Database struct {
-	mu    sync.Mutex
-	Table map[string]dto.Account
-}
-
-func NewDatabase() *Database {
-	return new(Database)
-}
-func (c *Database) Start() {
-	c.Table = map[string]dto.Account{
-		"1": {
-			ID:           1,
-			Balance:      0,
-			Limit:        100000,
-			Transactions: []dto.Transaction{},
-		},
-		"2": {
-			ID:           2,
-			Balance:      0,
-			Limit:        80000,
-			Transactions: []dto.Transaction{},
-		},
-		"3": {
-			ID:           3,
-			Balance:      0,
-			Limit:        1000000,
-			Transactions: []dto.Transaction{},
-		},
-		"4": {
-			ID:           4,
-			Balance:      0,
-			Limit:        100000000,
-			Transactions: []dto.Transaction{},
-		},
-		"5": {
-			ID:           5,
-			Balance:      0,
-			Limit:        500000,
-			Transactions: []dto.Transaction{},
-		},
+	accounts, err := getDebitLimitsAccount()
+	if err != nil {
+		panic(err)
 	}
-}
 
-func (c *Database) set(table map[string]dto.Account) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	//c.Table[name]++
-	c.Table = table
+	limitAccount = accounts
+
+	logger = lib.NewLogger(slog.LevelInfo)
+	logger.Info("Initialize server")
+	logger.Info("started cache account", "accounts", limitAccount)
 }
 
 func main() {
-	defer dbPql.Close()
-
-	fromAsyncQueue := new(FromAsyncQueue)
-	iSyncQ = queue.NewEvent(fromAsyncQueue)
-	go iSyncQ.Consume()
+	//defer dbPql.Close()
 
 	r := chi.NewRouter()
 
@@ -109,34 +57,76 @@ func main() {
 		MaxAge:           300, // Maximum value not ignored by any of major browsers
 	}))
 
-	r.Use(middleware.SetResponseJsonHeaders)
-	r.Use(middleware.TimeoutLimit)
+	//r.Use(middleware.SetResponseJsonHeaders)
+	//r.Use(middleware.TimeoutLimit)
+	r.Get("/", middleware.ProcessTimeout(func(writer http.ResponseWriter, request *http.Request) {
+		deadLine, ok := request.Context().Deadline()
+		fmt.Println("ContextTimout", deadLine, ok)
+		time.Sleep(time.Second * 10)
+		fmt.Println("processou")
+		writer.Write([]byte("OK"))
+	}, 5*time.Second))
 	r.Get("/clientes/{id}/extrato", GetTransactions)
 	r.Post("/clientes/{id}/transacoes", CreateTransaction)
 
 	fmt.Println("Starting server...")
-	log.Fatal(http.ListenAndServe(":3000", r))
+	//log.Fatal(http.ListenAndServe(":3000", r))
+	s := &http.Server{Addr: ":3000", Handler: r}
+	log.Fatal(s.ListenAndServeTLS("server.crt", "server.key"))
 }
 
 func GetTransactions(w http.ResponseWriter, r *http.Request) {
-	userID := chi.URLParam(r, "id")
+	accountID := chi.URLParam(r, "id")
 
-	account := dbCache.Table[userID]
-	if account.ID == 0 {
+	const queryGetBalancer = `
+	SELECT transactions.id, transactions.client_id, transactions.type, transactions.description, transactions.value, transactions.created_at, clients.balance, clients."limit" 
+	FROM clients
+	LEFT JOIN transactions on clients.id = transactions.client_id
+	WHERE clients.id = $1 ORDER BY transactions.created_at DESC LIMIT 10;
+	`
+	rows, err := dbPql.Query(queryGetBalancer, accountID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	var output dto.GetBalanceOutputDTO
+	for rows.Next() {
+		var r model.ExtractTransactionModel
+		if err := rows.Scan(
+			&r.TransactionID,
+			&r.ClientID,
+			&r.TransactionType,
+			&r.TransactionDesc,
+			&r.TransactionValue,
+			&r.CreatedAt,
+			&r.AccountBalance,
+			&r.AccountLimit,
+		); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		output.Ballance = dto.Ballance{
+			Total: int(r.AccountBalance.Int64),
+			Limit: int(r.AccountLimit.Int64),
+			Date:  time.Now(),
+		}
+		if r.TransactionValue.Int64 > int64(0) {
+			output.Transactions = append(output.Transactions, dto.Transaction{
+				Value:     r.TransactionValue.Int64,
+				Type:      r.TransactionType.String,
+				Desc:      r.TransactionDesc.String,
+				CreatedAt: r.CreatedAt.Time,
+			})
+		} else {
+			output.Transactions = []dto.Transaction{}
+		}
+	}
+
+	if output.Ballance.Total == 0 && output.Ballance.Limit == 0 {
 		http.Error(w, "Not found account", http.StatusNotFound)
 		return
 	}
 
-	output := dto.GetBalanceOutputDTO{
-		Ballance: dto.Ballance{
-			Total: int(account.Balance),
-			Date:  time.Now(),
-			Limit: int(account.Limit),
-		},
-		Transactions: account.Transactions,
-	}
-
-	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(output); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -152,6 +142,11 @@ func CreateTransaction(w http.ResponseWriter, r *http.Request) {
 		input  dto.Transaction
 		output dto.TransactionOutput
 	)
+
+	if limitAccount[accountIDParam] == 0 {
+		http.Error(w, "Not found account", http.StatusNotFound)
+		return
+	}
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -170,46 +165,29 @@ func CreateTransaction(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid Description", http.StatusUnprocessableEntity)
 		return
 	}
-
-	account := dbCache.Table[accountIDParam]
-	if account.ID == 0 {
-		http.Error(w, "Not found account", http.StatusNotFound)
+	if input.Value > limitAccount[accountIDParam] && input.Type == "d" {
+		logger.Warn("Debit: Value must be not greater than the limit",
+			"account_id", accountIDParam,
+			"cache_limit", limitAccount[accountIDParam],
+			"input", input,
+		)
+		http.Error(w, "Unauthorized transaction E0001x", http.StatusUnprocessableEntity)
 		return
 	}
 
-	if input.Type == "c" {
-		account.Balance += input.Value
-	}
-
-	if input.Type == "d" {
-		if account.Balance+account.Limit >= input.Value {
-			http.Error(w, "Debit must be positive", http.StatusUnprocessableEntity)
+	const query = `SELECT "balance", "limit" FROM insert_transactions($1,$2,$3,$4);`
+	if err := dbPql.QueryRow(query, accountIDParam, input.Value, input.Type, input.Desc).Scan(
+		&output.Balance,
+		&output.Limit,
+	); err != nil {
+		if strings.Contains(err.Error(), "Debit must be positive") {
+			http.Error(w, "Unauthorized transaction E0002x", http.StatusUnprocessableEntity)
 			return
 		}
-		account.Balance -= input.Value
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	input.CreatedAt = time.Now()
-	if len(account.Transactions) == 5 {
-		account.Transactions = account.Transactions[1:5]
-		account.Transactions = append(account.Transactions, input)
-	} else {
-		account.Transactions = append(account.Transactions, input)
-	}
-
-	b, _ := json.Marshal(account)
-	iSyncQ.Publish(b)
-
-	output = dto.TransactionOutput{
-		Limit:   account.Limit,
-		Balance: account.Balance,
-	}
-
-	dbCache.set(map[string]dto.Account{
-		accountIDParam: account,
-	})
-
-	//w.WriteHeader(http.StatusOK)//todo: suspeita de estar dando superflus headers
 	if err := json.NewEncoder(w).Encode(output); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -217,43 +195,25 @@ func CreateTransaction(w http.ResponseWriter, r *http.Request) {
 
 }
 
-type FromAsyncQueue struct{}
-
-func (*FromAsyncQueue) Consumer(input []byte) error {
-	var account dto.Account
-	if err := json.Unmarshal(input, &account); err != nil {
-		return err
+func getDebitLimitsAccount() (map[string]int64, error) {
+	output := make(map[string]int64)
+	const query = `SELECT id, "limit" FROM clients limit 10;`
+	rows, err := dbPql.Query(query)
+	if err != nil {
+		return make(map[string]int64), err
 	}
-
-	const query = `INSERT INTO "transactions" ("id", "value", "type", "description", "client_id") VALUES ($1, $2, $3, $4, $5);`
-	_, err := dbPql.Exec(
-		query,
-		uuid.NewString(),
-		account.Transactions[0].Value,
-		account.Transactions[0].Type,
-		account.Transactions[0].Desc,
-		account.ID,
-	)
-
-	return err
-}
-
-func (q FromAsyncQueue) ConsumerErr(input queue.Retry) error {
-	logger.Error("The Consumer Error", "error", input.RetrieveError, "data", string(input.Msg), "qtd", input.Quantity)
-
-	var account dto.Account
-	if err := json.Unmarshal(input.Msg, &account); err != nil {
-		return err
+	for rows.Next() {
+		var (
+			id    string
+			limit int64
+		)
+		if err = rows.Scan(
+			&id,
+			&limit,
+		); err != nil {
+			return make(map[string]int64), err
+		}
+		output[id] = limit
 	}
-
-	const query = `INSERT INTO "transactions" ("id", "value", "type", "description", "client_id") VALUES ($1, $2, $3, $4, $5);`
-	_, err := dbPql.Exec(
-		query,
-		uuid.NewString(),
-		account.Transactions[0].Value,
-		account.Transactions[0].Type,
-		account.Transactions[0].Desc,
-		account.ID,
-	)
-	return err
+	return output, err
 }
