@@ -70,9 +70,9 @@ func main() {
 	r.Post("/clientes/{id}/transacoes", CreateTransaction)
 
 	fmt.Println("Starting server...")
-	//log.Fatal(http.ListenAndServe(":3000", r))
-	s := &http.Server{Addr: ":3000", Handler: r}
-	log.Fatal(s.ListenAndServeTLS("server.crt", "server.key"))
+	log.Fatal(http.ListenAndServe(":3000", r))
+	// s := &http.Server{Addr: ":3000", Handler: r}
+	// log.Fatal(s.ListenAndServeTLS("server.crt", "server.key"))
 }
 
 func GetTransactions(w http.ResponseWriter, r *http.Request) {

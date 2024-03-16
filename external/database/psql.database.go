@@ -9,7 +9,9 @@ import (
 
 func ConnPSQL() *sql.DB {
 	dbPort := os.Getenv("DB_PORT")
-	db, err := sql.Open("postgres", fmt.Sprintf("postgresql://root:root@192.168.1.100:%s/rinha_backend?sslmode=disable", dbPort))
+	dbHost := os.Getenv("DB_HOST")
+	connectionURL := fmt.Sprintf("postgresql://root:root@%s:%s/rinha_backend?sslmode=disable", dbHost, dbPort)
+	db, err := sql.Open("postgres", connectionURL)
 	if err != nil {
 		log.Fatal(err)
 	}

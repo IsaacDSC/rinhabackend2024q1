@@ -1,7 +1,7 @@
 version: "3.5"
 
 services:
-  app01: &api
+  app01: 
       hostname: api01
       container_name: app01
       build:
@@ -12,9 +12,9 @@ services:
       ports:
         - "3001:3000"
       depends_on:
-      - db
+      - pgdb
       environment:
-      - DB_HOST=db
+      - DB_HOST=pgdb
       - DB_PORT=4321
       restart: "on-failure"
       deploy:
@@ -23,20 +23,33 @@ services:
             cpus: "0.6"
             memory: "55MB"
   api02:
-    # Essa sintaxe reusa o que foi declarado em 'api01'.
-    <<: *api 
     hostname: api02
     container_name: api02
+    build:
+        context: .
+        dockerfile: ./Dockerfile
+    volumes:
+      - .:/usr/app
     ports:
       - "3002:3000"
-
+    depends_on:
+      - pgdb
+    environment:
+      - DB_HOST=pgdb
+      - DB_PORT=4321
+    restart: "on-failure"
+    deploy:
+        resources:
+          limits:
+            cpus: "0.6"
+            memory: "55MB"
   nginx:
     image: nginx:latest
     volumes:
       - ./devops/nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - api01
-      - api02
+    # depends_on:
+    #   - api01
+    #   - api02
     ports:
         # Obrigatório expor/usar a porta 9999 no load balancer!
       - "9999:9999"
@@ -46,9 +59,9 @@ services:
           cpus: "0.17"
           memory: "50MB"
 
-  db:
+  pgdb:
     image: postgres:latest
-    hostname: db
+    hostname: pgdb
     environment:
       - POSTGRES_PASSWORD=root
       - POSTGRES_USER=root

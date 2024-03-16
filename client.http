@@ -1,7 +1,7 @@
-#@host=http://localhost:9999
-#@host=http://localhost:3000
-@host=https://localhost:3000
-#@host=http://localhost:3002
+# @host=http://localhost:9999
+@host=http://localhost:3000
+# @host=https://localhost:3000
+# @host=http://localhost:3002
 
 
 ###
@@ -20,7 +20,7 @@ GET {{host}}/clientes/1/extrato
 content-type: application/json
 
 ###
-GET {{host}}/
+GET http://localhost:4646/
 
 # HTTP/1.1 200 OK
 # Server: nginx/1.25.4
